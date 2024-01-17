@@ -8,6 +8,7 @@ use Google\Service\Sheets;
 use \Google\Service\Sheets\ValueRange;
 use Google\Client;
 use Illuminate\Support\Carbon;
+use MongoDB\BSON\UTCDateTime;
 
 class GoogleSheetsService
 {
@@ -22,6 +23,14 @@ class GoogleSheetsService
         $this->googleSheetsRepository = $googleSheetsRepository;
     }
 
+    public function validarRequest($request)
+    {
+        $dataInicio = isset($request['dataInicio']) ? $request['dataInicio'] : null;
+        $dataFim = isset($request['dataFim']) ? $request['dataFim'] : null;
+        $retorno = $this->getData($dataInicio,$dataFim);
+        return $retorno;
+    }
+    
     private function Client()
     {
         $this->client = new Client();
@@ -51,7 +60,7 @@ class GoogleSheetsService
         }
     }
 
-    public function getData()
+    public function getData($dataInicio,$dataFim)
     {
         $gruposEmpresas = $this->googleSheetsRepository->getGrupoEmpresas();
 
@@ -65,8 +74,8 @@ class GoogleSheetsService
             $this->dados['cidade'] = isset($grupoEmpresa['bases']['MATRIZ']) ? $grupoEmpresa['bases']['MATRIZ']['end']['cidade'] : $basesArray[0]['end']['cidade'];
             $this->dados['cnpj'] = isset($grupoEmpresa['cnpjs'][0])? $grupoEmpresa['cnpjs'][0] : "CNPJ NÂO ENCONTRADO";
             $this->dados['dataComeco'] = $this->formatarDatas($grupoEmpresa['created_at']);
-            $this->dados['totalDocs'] = count($this->googleSheetsRepository->getTotalDocs($this->dados['grupo_emp']));
-            $this->dados['totalComprovacoes'] = count($this->googleSheetsRepository->getTotalComprovados($this->dados['grupo_emp']));
+            $this->dados['totalDocs'] = count($this->googleSheetsRepository->getTotalDocs($this->dados['grupo_emp'],$dataInicio, $dataFim));
+            $this->dados['totalComprovacoes'] = count($this->googleSheetsRepository->getTotalComprovados($this->dados['grupo_emp'],$dataInicio, $dataFim));
             $this->dados['ativo'] = $this->dados['totalComprovacoes'] == 0 ? "FALSE" : "TRUE";
             $tipoUser = [
                 'GESTOR',
@@ -76,23 +85,21 @@ class GoogleSheetsService
             $this->dados['tatico'] = count($this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[0]));
             $this->dados['operacional'] = count($this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[1]));
             $this->dados['Motoritas'] = count($this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[2]));
-            $this->dados['MotoritasAtivoDia'] = count($this->motoristasAtivosDia($this->dados['grupo_emp']));
+            $this->dados['MotoritasAtivoDia'] = count($this->motoristasAtivosDia($this->dados['grupo_emp'],$dataInicio, $dataFim));
             $this->dados['NumeroIntegracoes'] = count($this->googleSheetsRepository->getIntegracoes($this->dados['grupo_emp']));
             $this->dados['taxaComprovacao'] = $this->getTaxaComprovacao($this->dados['totalDocs'],$this->dados['totalComprovacoes']);
             $empAtualizadas[] = $this->dados['grupo_emp'];
-           
             $this->dados = $this->prepararEnvio($this->dados);
             $this->insertPlan[] = $this->dados;       
         }
         $this->insertPlanilha($this->insertPlan, $empAtualizadas);
         return $this->retorno;
     }
-    public function motoristasAtivosDia($grupo_emp)
+    public function motoristasAtivosDia($grupo_emp , $dataInicio, $dataFim)
     {
-        $notasRomaneadas = $this->googleSheetsRepository->getDocsRomaneio($grupo_emp);
+        $notasRomaneadas = $this->googleSheetsRepository->getDocsRomaneio($grupo_emp,$dataInicio, $dataFim);
         $motoristas = [];
         foreach ($notasRomaneadas as $notaRomaneada) {
-            dd($notaRomaneada);
             $motoristas[] = $notaRomaneada[$grupo_emp]['romaneio']['cpf_motorista'];
         }
         $motoristas = array_unique($motoristas);

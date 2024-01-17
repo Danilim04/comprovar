@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\GoogleSheetsService;
+use MongoDB\BSON\UTCDateTime;
 
 
 class SheetController extends Controller
@@ -17,7 +18,8 @@ class SheetController extends Controller
 
     public function ApiSheets(Request $request)
     {
-        $getData = $this->googleSheetsService->getData();
+        $dados = $request->all();
+        $getData = $this->googleSheetsService->validarRequest($dados);
         $retorno = [
             "status" => true,
             "Empresas atualizadas" => $getData
