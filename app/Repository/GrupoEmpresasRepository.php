@@ -13,35 +13,71 @@ use Illuminate\Support\Carbon;
 class GrupoEmpresasRepository
 {
     private $timezone = 'America/Sao_Paulo';
-    public function getGrupoEmpresas()
+    public function getGrupoEmpresas($grupo_emp)
     {
-        $grupoEmpresas = Grupo_empresa::raw(function ($collection) {
-            return $collection->aggregate([
-                [
-                    '$project' => [
-                        'grupo_emp' => '$grupo_emp',
-                        'tipo_emp' => '$tipo_emp',
-                        'bases' => [
-                            '$cond' => [
-                                'if' => ['$ifNull' => ['$bases.MATRIZ', false]],
-                                'then' => '$bases.MATRIZ',
-                                'else' => ['$objectToArray' => '$bases'],
-                            ]
+        if (isset($grupo_emp)) {
+            $grupoEmpresas = Grupo_empresa::raw(function ($collection) use ($grupo_emp) {
+                return $collection->aggregate([
+                    [
+                        '$match' => [
+                            'grupo_emp' => "$grupo_emp"
                         ],
-                        'cnpjs' => '$cnpjs',
-                        'dataComeco' => [
-                            '$dateToString' => [
-                                'format' => '%Y-%m-%d',
-                                'date' => '$created_at',
-                                'timezone' => 'UTC',
+                    ],
+                    [
+                        '$project' => [
+                            'grupo_emp' => '$grupo_emp',
+                            'tipo_emp' => '$tipo_emp',
+                            'bases' => [
+                                '$cond' => [
+                                    'if' => ['$ifNull' => ['$bases.MATRIZ', false]],
+                                    'then' => '$bases.MATRIZ',
+                                    'else' => ['$objectToArray' => '$bases'],
+                                ]
+                            ],
+                            'cnpjs' => '$cnpjs',
+                            'dataComeco' => [
+                                '$dateToString' => [
+                                    'format' => '%d/%m/%Y',
+                                    'date' => '$created_at',
+                                    'timezone' => 'UTC',
+                                ],
                             ],
                         ],
                     ],
-                ],
-            ]);
-        });
+                ]);
+            });
+    
+            $resultadosDoProjeto = $grupoEmpresas->toArray();
+        } else {
+            $grupoEmpresas = Grupo_empresa::raw(function ($collection) {
+                return $collection->aggregate([
+                    [
+                        '$project' => [
+                            'grupo_emp' => '$grupo_emp',
+                            'tipo_emp' => '$tipo_emp',
+                            'bases' => [
+                                '$cond' => [
+                                    'if' => ['$ifNull' => ['$bases.MATRIZ', false]],
+                                    'then' => '$bases.MATRIZ',
+                                    'else' => ['$objectToArray' => '$bases'],
+                                ]
+                            ],
+                            'cnpjs' => '$cnpjs',
+                            'dataComeco' => [
+                                '$dateToString' => [
+                                    'format' => '%d/%m/%Y',
+                                    'date' => '$created_at',
+                                    'timezone' => 'UTC',
+                                ],
+                            ],
+                        ],
+                    ],
+                ]);
+            });
 
-        $resultadosDoProjeto = $grupoEmpresas->toArray();
+            $resultadosDoProjeto = $grupoEmpresas->toArray();
+        }
+
         return $resultadosDoProjeto;
     }
     public function getTotalDocs($grupo_emp, $dataInicio, $dataFim)

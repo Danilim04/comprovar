@@ -29,10 +29,11 @@ class GoogleSheetsService
     {
         $dataInicio = isset($request['dataInicio']) ? $request['dataInicio'] : null;
         $dataFim = isset($request['dataFim']) ? $request['dataFim'] : null;
-        $retorno = $this->getData($dataInicio,$dataFim);
+        $grupo_emp = isset($request['grupo_emp']) ? $request['grupo_emp'] : null;
+        $retorno = $this->getData($dataInicio, $dataFim, $grupo_emp);
         return $retorno;
     }
-    
+
     private function Client()
     {
         $this->client = new Client();
@@ -62,38 +63,46 @@ class GoogleSheetsService
         }
     }
 
-    public function getData($dataInicio,$dataFim)
+    public function getData($dataInicio, $dataFim, $grupo_emp)
     {
-          
-        $gruposEmpresas = $this->googleSheetsRepository->getGrupoEmpresas();
 
-        foreach ($gruposEmpresas as $grupoEmpresa) {
-            $this->dados['grupo_emp'] = $grupoEmpresa['grupo_emp'];
-            $this->dados['tipo_emp'] = $grupoEmpresa['tipo_emp'];
-            $this->dados['estado'] = isset($grupoEmpresa['bases']['end']) ? $grupoEmpresa['bases']['end']['estado'] : $grupoEmpresa['bases'][0]['v']['end']['estado'];
-            $this->dados['cidade'] = isset($grupoEmpresa['bases']['end']) ? $grupoEmpresa['bases']['end']['cidade'] : $grupoEmpresa['bases'][0]['v']['end']['cidade'];
-            $this->dados['cnpj'] = isset($grupoEmpresa['cnpjs'][0])? $grupoEmpresa['cnpjs'][0] : "CNPJ NÂO ENCONTRADO";
-            $this->dados['dataComeco'] = $grupoEmpresa['dataComeco'];
-            $this->dados['totalDocs'] = $this->googleSheetsRepository->getTotalDocs($this->dados['grupo_emp'],$dataInicio, $dataFim);
-            $this->dados['totalComprovacoes'] = $this->googleSheetsRepository->getTotalComprovados($this->dados['grupo_emp'],$dataInicio, $dataFim);
-            $this->dados['ativo'] = $this->dados['totalComprovacoes'] == 0 ? "FALSE" : "TRUE";
-            $tipoUser = [
-                'GESTOR',
-                'COLABORADOR',
-                'MOTORISTA'
+        $gruposEmpresas =  $this->googleSheetsRepository->getGrupoEmpresas($grupo_emp);
+
+        if (!empty($gruposEmpresas[0])) {
+            foreach ($gruposEmpresas as $grupoEmpresa) {
+                $this->dados['grupo_emp'] = $grupoEmpresa['grupo_emp'];
+                $this->dados['tipo_emp'] = $grupoEmpresa['tipo_emp'];
+                $this->dados['estado'] = isset($grupoEmpresa['bases']['end']) ? $grupoEmpresa['bases']['end']['estado'] : $grupoEmpresa['bases'][0]['v']['end']['estado'];
+                $this->dados['cidade'] = isset($grupoEmpresa['bases']['end']) ? $grupoEmpresa['bases']['end']['cidade'] : $grupoEmpresa['bases'][0]['v']['end']['cidade'];
+                $this->dados['cnpj'] = isset($grupoEmpresa['cnpjs'][0]) ? $grupoEmpresa['cnpjs'][0] : "CNPJ NÂO ENCONTRADO";
+                $this->dados['dataComeco'] = $grupoEmpresa['dataComeco'];
+                $this->dados['totalDocs'] = $this->googleSheetsRepository->getTotalDocs($this->dados['grupo_emp'], $dataInicio, $dataFim);
+                $this->dados['totalComprovacoes'] = $this->googleSheetsRepository->getTotalComprovados($this->dados['grupo_emp'], $dataInicio, $dataFim);
+                $this->dados['ativo'] = $this->dados['totalComprovacoes'] == 0 ? "FALSE" : "TRUE";
+                $tipoUser = [
+                    'GESTOR',
+                    'COLABORADOR',
+                    'MOTORISTA'
+                ];
+                $this->dados['tatico'] = $this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[0]);
+                $this->dados['operacional'] = $this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[1]);
+                $this->dados['Motoritas'] = $this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[2]);
+                $this->dados['MotoritasAtivoDia'] = $this->googleSheetsRepository->getDocsRomaneio($this->dados['grupo_emp'], $dataInicio, $dataFim);
+                $this->dados['NumeroIntegracoes'] = $this->googleSheetsRepository->getIntegracoes($this->dados['grupo_emp']);
+                $this->dados['taxaComprovacao'] = $this->getTaxaComprovacao($this->dados['totalDocs'], $this->dados['totalComprovacoes']);
+                $this->dados['dataConsulta'] = isset($dataInicio) && isset($dataFim) ? Carbon::parse($dataInicio)->format('d/m/Y') : Carbon::now($this->timezone)->format('d/m/Y');
+                $empAtualizadas[] = $this->dados['grupo_emp'];
+                $this->dados = $this->prepararEnvio($this->dados);
+                $this->insertPlan[] = $this->dados;
+            }
+            $this->insertPlanilha($this->insertPlan, $empAtualizadas);
+        } else {
+            $this->retorno = [
+                'status' => false,
+                'mensagem' => 'Nao foi encontrado o grupoEmp'
             ];
-            $this->dados['tatico'] = $this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[0]);
-            $this->dados['operacional'] = $this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[1]);
-            $this->dados['Motoritas'] = $this->googleSheetsRepository->getUsers($this->dados['grupo_emp'], $tipoUser[2]);
-            $this->dados['MotoritasAtivoDia'] = $this->googleSheetsRepository->getDocsRomaneio($this->dados['grupo_emp'],$dataInicio, $dataFim);
-            $this->dados['NumeroIntegracoes'] = $this->googleSheetsRepository->getIntegracoes($this->dados['grupo_emp']);
-            $this->dados['taxaComprovacao'] = $this->getTaxaComprovacao($this->dados['totalDocs'],$this->dados['totalComprovacoes']);
-            $this->dados['dataConsulta'] = isset($dataInicio) ? Carbon::parse($dataInicio)->format('m/Y') : Carbon::now($this->timezone)->format('m/Y');
-            $empAtualizadas[] = $this->dados['grupo_emp'];
-            $this->dados = $this->prepararEnvio($this->dados);
-            $this->insertPlan[] = $this->dados;       
         }
-        $this->insertPlanilha($this->insertPlan, $empAtualizadas);
+
         return $this->retorno;
     }
     public function getTaxaComprovacao($totalDocs, $totalComprovacao)
@@ -123,9 +132,9 @@ class GoogleSheetsService
             $dados['taxaComprovacao'],
             $dados['dataConsulta'],
         ];
-    
+
         $dadosFormatados = array_map('strval', $dadosFormatados);
-    
+
         return $dadosFormatados;
     }
 }
