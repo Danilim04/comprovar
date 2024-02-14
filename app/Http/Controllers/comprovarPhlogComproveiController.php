@@ -254,9 +254,9 @@ class comprovarPhlogComproveiController extends Controller
                                     '$gte' => $dataInicio,
                                     '$lte' => $dataFim
                                 ],
-                                $grupo_emp => ['$exists' => false],
+                                $grupo_emp => ['$exists' => true],
                                 "$grupo_emp.status" => [
-                                    '$in' => ["NAO RETORNE NADA"]
+                                    '$nin' => ["COMPROVADO","PROTOCOLOADO","VALIDADO"] 
                                 ]
                             ]
                         ],
@@ -405,7 +405,7 @@ class comprovarPhlogComproveiController extends Controller
             try {
                 $options['auth'] = [$usuarioAzapfy, $senhaAzapfy];
                 $options['form_params'] = $requestComprovar;
-                $request = $client->request('POST', 'homologacao3.azapfy.com.br/api/integracao/comprovar', $options);
+                $request = $client->request('POST', 'api.azapfy.com.br/api/integracao/comprovar', $options);
                 $result = json_decode($request->getBody()->getContents());
                 $chavesComprovadasValidacao = empty($chavesComprovadas) ? "0" : count($chavesComprovadas);
                 $chavesSemdadosValidacao = empty($chavesSemDados) ? "0" : count($chavesSemDados);
@@ -653,7 +653,7 @@ class comprovarPhlogComproveiController extends Controller
             try {
                 $options['auth'] = [$usuarioAzapfy, $senhaAzapfy];
                 $options['form_params'] = $requestComprovar;
-                $request = $client->request('POST', 'homologacao3.azapfy.com.br/api/integracao/comprovar', $options);
+                $request = $client->request('POST', 'api.azapfy.com.br/api/integracao/comprovar', $options);
                 $result = json_decode($request->getBody()->getContents());
                 $controle->delete();
                 return '<!DOCTYPE html>
